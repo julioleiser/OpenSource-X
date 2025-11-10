@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DrawPanel</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Paleta Lateral Esquerda */
+        .palette {
+            width: 250px;
+            background: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            padding: 16px;
+            overflow-y: auto;
+            box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+        }
+
+        .palette h2 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #1976d2;
+        }
+
+        .palette-group {
+            margin-bottom: 24px;
+        }
+
+        .palette-group-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .palette-items {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .palette-item {
+            width: 100px;
+            height: 90px;
+            background: #f9f9f9;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: grab;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+
+        .palette-item:hover {
+            background: #f0f7ff;
+            border-color: #1976d2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(25,118,210,0.2);
+        }
+
+        .palette-item:active {
+            cursor: grabbing;
+        }
+
+        .palette-item.dragging {
+            opacity: 0.6;
+            cursor: grabbing;
+        }
+
+        /* Imagem de drag customizada */
+        .drag-ghost {
+            position: fixed;
+            width: 100px;
+            height: 90px;
+            background: #ffffff;
+            border: 2px solid #1976d2;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transform: rotate(30deg);
+            pointer-events: none;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(25,118,210,0.3);
+            top: -1000px;
+            left: -1000px;
+        }
+
+        .drag-ghost-icon {
+            font-size: 32px;
+            line-height: 1;
+        }
+
+        .drag-ghost-label {
+            font-size: 11px;
+            color: #333;
+            text-align: center;
+            font-weight: 500;
+            line-height: 1.2;
+        }
+
+        .palette-item-icon {
+            font-size: 32px;
+            line-height: 1;
+        }
+
+        .palette-item-label {
+            font-size: 11px;
+            color: #333;
+            text-align: center;
+            font-weight: 500;
+            line-height: 1.2;
+        }
+
+        /* Área de Canvas */
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #f5f5f5;
+        }
+
+        .canvas-header {
+            background: #ffffff;
+            padding: 16px 24px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .canvas-header h1 {
+            font-size: 20px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: #1565c0;
+            box-shadow: 0 2px 8px rgba(25,118,210,0.3);
+        }
+
+        /* Área de Desenho */
+        .canvas-drawing {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .drop-zone {
+            min-height: calc(100vh - 120px);
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .drop-zone.drag-over {
+            background: #f0f7ff;
+            border: 2px dashed #1976d2;
+        }
+
+        /* Placeholder quando vazio */
+        .drop-zone-placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #999;
+            pointer-events: none;
+        }
+
+        .drop-zone-placeholder.hidden {
+            display: none;
+        }
+
+        .drop-zone-placeholder-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        .drop-zone-placeholder-text {
+            font-size: 16px;
+        }
+
+        /* Box Indicador de Posição de Drop */
+        .drop-indicator {
+            position: relative;
+            height: 80px;
+            margin: 8px 0;
+            border: 2px dashed #1976d2;
+            background: rgba(25,118,210,0.1);
+            border-radius: 8px;
+            display: none !important;
+            pointer-events: none;
+        }
+
+        .drop-indicator.active {
+            display: block !important;
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        .drop-indicator::before {
+            content: '↓ Solte aqui ↓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #1976d2;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* Indicador de Coluna Lateral */
+        .column-indicator {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #4caf50;
+            box-shadow: 0 0 8px rgba(76,175,80,0.5);
+            z-index: 1000;
+            pointer-events: none;
+            display: none;
+        }
+
+        .column-indicator.active {
+            display: block;
+            animation: pulse-column 1s ease-in-out infinite;
+        }
+
+        .column-indicator::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 12px;
+            height: 12px;
+            background: #4caf50;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(76,175,80,0.8);
+        }
+
+        @keyframes pulse-column {
+            0%, 100% {
+                background: #4caf50;
+            }
+            50% {
+                background: #66bb6a;
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                background: rgba(25,118,210,0.1);
+            }
+            50% {
+                background: rgba(25,118,210,0.2);
+            }
+        }
+
+        /* Linhas (Rows) no Canvas */
+        .canvas-row {
+            display: flex;
+            gap: 0;
+            margin: 8px 0;
+            position: relative;
+            min-height: 80px;
+        }
+
+        /* Wrapper de coluna com handle */
+        .column-wrapper {
+            position: relative;
+            min-width: 50px;
+            transition: flex-basis 0.1s ease;
+        }
+
+        /* Componentes no Canvas */
+        .canvas-component {
+            background: #ffffff;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: move;
+            height: 100%;
+            box-sizing: border-box;
+            min-height: 60px;
+        }
+
+        .canvas-component:hover {
+            border-color: #1976d2;
+            box-shadow: 0 2px 8px rgba(25,118,210,0.2);
+        }
+
+        .canvas-component.dragging {
+            opacity: 0.3;
+        }
+
+        /* Desabilitar interação com inputs dentro do canvas */
+        .canvas-component input,
+        .canvas-component textarea,
+        .canvas-component select,
+        .canvas-component button {
+            pointer-events: none;
+        }
+
+        /* Containers - áreas de drop dentro de componentes */
+        .container-drop-zone {
+            transition: all 0.2s ease;
+        }
+
+        .container-drop-zone.drag-over {
+            background: #e3f2fd !important;
+            border-color: #1976d2 !important;
+            border-style: solid !important;
+        }
+
+        .container-drop-zone:empty .container-placeholder,
+        .container-drop-zone:has(.container-placeholder:only-child) .container-placeholder {
+            display: block;
+        }
+
+        /* Ocultar placeholder quando houver componentes */
+        .container-drop-zone:not(:empty):not(:has(.container-placeholder:only-child)) .container-placeholder {
+            display: none;
+        }
+
+        /* Preview de coluna durante drag */
+        .canvas-row.drag-over-row {
+            background: rgba(25,118,210,0.05);
+            border-radius: 8px;
+        }
+
+        /* Handle de redimensionamento */
+        .resize-handle {
+            position: absolute;
+            top: 0;
+            right: -4px;
+            width: 8px;
+            height: 100%;
+            cursor: col-resize;
+            z-index: 100;
+            background: transparent;
+            transition: background 0.2s ease;
+        }
+
+        .resize-handle::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 3px;
+            height: 40px;
+            background: #bdbdbd;
+            border-radius: 2px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .resize-handle:hover::before,
+        .resize-handle.active::before {
+            opacity: 1;
+        }
+
+        .resize-handle:hover::before {
+            background: #1976d2;
+            height: 60px;
+        }
+
+        .resize-handle.active::before {
+            background: #4caf50;
+            height: 100%;
+            width: 4px;
+        }
+
+        /* Ocultar cursor de move no componente quando há handle */
+        .column-wrapper:not(:last-child) .canvas-component {
+            cursor: move;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f0f0f0;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c0c0c0;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a0a0a0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Paleta de Componentes -->
+        <div class="palette">
+            <h2>📦 Componentes</h2>
+
+            <div class="palette-group">
+                <div class="palette-group-title">Básicos</div>
+                <div class="palette-items">
+                    <div class="palette-item" draggable="true" data-type="textfield">
+                        <span class="palette-item-icon">📝</span>
+                        <span class="palette-item-label">Campo de Texto</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="email">
+                        <span class="palette-item-icon">📧</span>
+                        <span class="palette-item-label">E-mail</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="password">
+                        <span class="palette-item-icon">🔒</span>
+                        <span class="palette-item-label">Senha</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="number">
+                        <span class="palette-item-icon">🔢</span>
+                        <span class="palette-item-label">Número</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="tel">
+                        <span class="palette-item-icon">📞</span>
+                        <span class="palette-item-label">Telefone</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="url">
+                        <span class="palette-item-icon">🌐</span>
+                        <span class="palette-item-label">URL</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="textarea">
+                        <span class="palette-item-icon">📄</span>
+                        <span class="palette-item-label">Área de Texto</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="hidden">
+                        <span class="palette-item-icon">👁️</span>
+                        <span class="palette-item-label">Campo Oculto</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="palette-group">
+                <div class="palette-group-title">Seleção</div>
+                <div class="palette-items">
+                    <div class="palette-item" draggable="true" data-type="select">
+                        <span class="palette-item-icon">📋</span>
+                        <span class="palette-item-label">Seleção</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="checkbox">
+                        <span class="palette-item-icon">☑️</span>
+                        <span class="palette-item-label">Checkbox</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="radio">
+                        <span class="palette-item-icon">🔘</span>
+                        <span class="palette-item-label">Radio</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="palette-group">
+                <div class="palette-group-title">Data e Tempo</div>
+                <div class="palette-items">
+                    <div class="palette-item" draggable="true" data-type="date">
+                        <span class="palette-item-icon">📆</span>
+                        <span class="palette-item-label">Data</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="time">
+                        <span class="palette-item-icon">⏰</span>
+                        <span class="palette-item-label">Hora</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="datetime">
+                        <span class="palette-item-icon">📅</span>
+                        <span class="palette-item-label">Data e Hora</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="month">
+                        <span class="palette-item-icon">🗓️</span>
+                        <span class="palette-item-label">Mês</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="week">
+                        <span class="palette-item-icon">📊</span>
+                        <span class="palette-item-label">Semana</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="palette-group">
+                <div class="palette-group-title">Avançados</div>
+                <div class="palette-items">
+                    <div class="palette-item" draggable="true" data-type="file">
+                        <span class="palette-item-icon">📎</span>
+                        <span class="palette-item-label">Arquivo</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="color">
+                        <span class="palette-item-icon">🎨</span>
+                        <span class="palette-item-label">Cor</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="range">
+                        <span class="palette-item-icon">🎚️</span>
+                        <span class="palette-item-label">Slider</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="palette-group">
+                <div class="palette-group-title">Containers</div>
+                <div class="palette-items">
+                    <div class="palette-item" draggable="true" data-type="panel">
+                        <span class="palette-item-icon">🗂️</span>
+                        <span class="palette-item-label">Painel</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="fieldset">
+                        <span class="palette-item-icon">📦</span>
+                        <span class="palette-item-label">Grupo</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="tabs">
+                        <span class="palette-item-icon">📑</span>
+                        <span class="palette-item-label">Abas</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="palette-group">
+                <div class="palette-group-title">Ações e Outros</div>
+                <div class="palette-items">
+                    <div class="palette-item" draggable="true" data-type="button">
+                        <span class="palette-item-icon">⚪</span>
+                        <span class="palette-item-label">Botão</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="submit">
+                        <span class="palette-item-icon">✅</span>
+                        <span class="palette-item-label">Enviar</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="label">
+                        <span class="palette-item-icon">🏷️</span>
+                        <span class="palette-item-label">Rótulo</span>
+                    </div>
+                    <div class="palette-item" draggable="true" data-type="space">
+                        <span class="palette-item-icon">⬜</span>
+                        <span class="palette-item-label">Espaçador</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Área de Canvas -->
+        <div class="canvas-area">
+            <div class="canvas-header">
+                <h1>🎨 Editor de Formulário</h1>
+                <button class="btn" onclick="showJSON()">Ver JSON</button>
+            </div>
+
+            <div class="canvas-drawing">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone-placeholder" id="placeholder">
+                        <div class="drop-zone-placeholder-icon">📋</div>
+                        <div class="drop-zone-placeholder-text">Arraste componentes da paleta para começar</div>
+                    </div>
+                    
+                    <!-- Indicador de posição de drop -->
+                    <div class="drop-indicator" id="dropIndicator"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Estado global
+        let rows = []; // Agora é array de rows, cada row tem array de {component, width}
+        let draggedType = null;
+        let draggedElement = null;
+        let draggedRowIndex = null;
+        let draggedColIndex = null;
+        let draggedChildIndex = null; // Para rastrear filhos dentro de containers
+        let dragGhost = null;
+        let columnIndicator = null;
+        let dropMode = 'row'; // 'row' ou 'column'
+        let targetRowIndex = -1;
+        let targetPosition = 'before'; // 'before' ou 'after'
+        
+        // Estado de redimensionamento
+        let isResizing = false;
+        let resizeRowIndex = -1;
+        let resizeColIndex = -1;
+        let resizeStartX = 0;
+        let resizeStartWidths = [];
+
+        // Elementos do DOM
+        const dropZone = document.getElementById('dropZone');
+        const placeholder = document.getElementById('placeholder');
+        const dropIndicator = document.getElementById('dropIndicator');
+
+        // Criar indicador de coluna
+        function createColumnIndicator() {
+            if (!columnIndicator) {
+                columnIndicator = document.createElement('div');
+                columnIndicator.className = 'column-indicator';
+            }
+            return columnIndicator;
+        }
+
+        // Criar elemento ghost para drag customizado
+        function createDragGhost(icon, label) {
+            if (dragGhost) {
+                document.body.removeChild(dragGhost);
+            }
+            
+            dragGhost = document.createElement('div');
+            dragGhost.className = 'drag-ghost';
+            dragGhost.innerHTML = `
+                <span class="drag-ghost-icon">${icon}</span>
+                <span class="drag-ghost-label">${label}</span>
+            `;
+            document.body.appendChild(dragGhost);
+            return dragGhost;
+        }
+
+        // Remover ghost
+        function removeDragGhost() {
+            if (dragGhost && dragGhost.parentNode) {
+                document.body.removeChild(dragGhost);
+                dragGhost = null;
+            }
+        }
+
+        // Atualizar posição do ghost
+        function updateDragGhost(e) {
+            if (dragGhost) {
+                dragGhost.style.left = (e.clientX - 50) + 'px';
+                dragGhost.style.top = (e.clientY - 45) + 'px';
+            }
+        }
+
+        // Configurar drag da paleta
+        document.querySelectorAll('.palette-item').forEach(item => {
+            item.addEventListener('dragstart', function(e) {
+                draggedType = this.getAttribute('data-type');
+                draggedElement = null;
+                draggedIndex = null;
+                
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'copy';
+                e.dataTransfer.setData('text/plain', draggedType);
+                
+                // Criar ghost customizado com rotação
+                const icon = this.querySelector('.palette-item-icon').textContent;
+                const label = this.querySelector('.palette-item-label').textContent;
+                const ghost = createDragGhost(icon, label);
+                
+                // Ocultar imagem padrão do drag
+                e.dataTransfer.setDragImage(new Image(), 0, 0);
+                
+                console.log('🚀 Arrastando da paleta:', draggedType);
+            });
+
+            item.addEventListener('drag', function(e) {
+                updateDragGhost(e);
+            });
+
+            item.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                removeDragGhost();
+                draggedType = null;
+            });
+        });
+
+        // Configurar drop zone
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = draggedElement ? 'move' : 'copy';
+            
+            this.classList.add('drag-over');
+            
+            // Mostrar indicador de posição
+            showDropIndicator(e);
+        });
+
+        dropZone.addEventListener('dragleave', function(e) {
+            // Verificar se realmente saiu da área (não é um filho)
+            if (!this.contains(e.relatedTarget)) {
+                this.classList.remove('drag-over');
+                hideAllIndicators();
+                console.log('👋 Saiu da área de desenho - indicadores removidos');
+            }
+        });
+
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            
+            console.log('📍 Drop executado - Modo:', dropMode, 'Row:', targetRowIndex, 'Pos:', targetPosition);
+            
+            this.classList.remove('drag-over');
+            
+            const type = e.dataTransfer.getData('text/plain') || draggedType;
+            
+            if (draggedElement) {
+                // Reordenando componente existente
+                console.log('🔄 Reordenando componente');
+                reorderComponent();
+            } else if (type) {
+                // Adicionando novo componente
+                console.log('📥 Adicionando componente:', type);
+                addComponent(type);
+            }
+            
+            // Limpar tudo
+            hideAllIndicators();
+            removeDragGhost();
+            
+            draggedType = null;
+            draggedElement = null;
+            draggedRowIndex = null;
+            draggedColIndex = null;
+        });
+
+        // Mostrar indicador de posição (linha ou coluna)
+        function showDropIndicator(e) {
+            const existingRows = dropZone.querySelectorAll('.canvas-row');
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+            
+            if (existingRows.length === 0) {
+                // Canvas vazio - modo linha
+                dropMode = 'row';
+                targetRowIndex = 0;
+                hideColumnIndicator();
+                
+                ensureDropIndicator();
+                dropIndicator.classList.add('active');
+                if (dropIndicator.parentNode !== dropZone) {
+                    dropZone.insertBefore(dropIndicator, dropZone.firstChild);
+                }
+                return;
+            }
+
+            // Verificar se está sobre alguma linha existente
+            let overRow = null;
+            let overRowIndex = -1;
+            
+            existingRows.forEach((row, idx) => {
+                const rect = row.getBoundingClientRect();
+                if (mouseY >= rect.top && mouseY <= rect.bottom &&
+                    mouseX >= rect.left && mouseX <= rect.right) {
+                    overRow = row;
+                    overRowIndex = idx;
+                }
+            });
+
+            if (overRow) {
+                // Modo coluna - está sobre uma linha
+                dropMode = 'column';
+                targetRowIndex = overRowIndex;
+                hideDropIndicator();
+                
+                const rect = overRow.getBoundingClientRect();
+                const rowMiddle = rect.left + rect.width / 2;
+                
+                // Determinar se insere antes ou depois
+                targetPosition = mouseX < rowMiddle ? 'before' : 'after';
+                
+                // Mostrar indicador de coluna
+                createColumnIndicator();
+                overRow.classList.add('drag-over-row');
+                
+                if (targetPosition === 'before') {
+                    columnIndicator.style.left = '0';
+                } else {
+                    columnIndicator.style.left = 'auto';
+                    columnIndicator.style.right = '0';
+                }
+                
+                if (columnIndicator.parentNode !== overRow) {
+                    overRow.appendChild(columnIndicator);
+                }
+                columnIndicator.classList.add('active');
+                
+            } else {
+                // Modo linha - entre linhas
+                dropMode = 'row';
+                hideColumnIndicator();
+                
+                document.querySelectorAll('.canvas-row').forEach(row => {
+                    row.classList.remove('drag-over-row');
+                });
+                
+                let insertBeforeRow = null;
+                let closestDistance = Infinity;
+
+                existingRows.forEach((row, idx) => {
+                    const rect = row.getBoundingClientRect();
+                    const rowMiddle = rect.top + rect.height / 2;
+                    const distance = mouseY - rowMiddle;
+
+                    if (distance < 0 && Math.abs(distance) < closestDistance) {
+                        closestDistance = Math.abs(distance);
+                        insertBeforeRow = row;
+                        targetRowIndex = idx;
+                    }
+                });
+
+                ensureDropIndicator();
+                dropIndicator.classList.add('active');
+                
+                if (insertBeforeRow) {
+                    dropZone.insertBefore(dropIndicator, insertBeforeRow);
+                } else {
+                    dropZone.appendChild(dropIndicator);
+                    targetRowIndex = existingRows.length;
+                }
+            }
+        }
+
+        // Esconder indicador de linha
+        function hideDropIndicator() {
+            dropIndicator.classList.remove('active');
+            if (dropIndicator.parentNode) {
+                dropIndicator.parentNode.removeChild(dropIndicator);
+            }
+        }
+
+        // Esconder indicador de coluna
+        function hideColumnIndicator() {
+            if (columnIndicator) {
+                columnIndicator.classList.remove('active');
+                if (columnIndicator.parentNode) {
+                    columnIndicator.parentNode.removeChild(columnIndicator);
+                }
+            }
+        }
+
+        // Esconder todos os indicadores
+        function hideAllIndicators() {
+            hideDropIndicator();
+            hideColumnIndicator();
+            
+            // Remover classe drag-over de todas as rows
+            document.querySelectorAll('.canvas-row').forEach(row => {
+                row.classList.remove('drag-over-row');
+            });
+        }
+
+        // Garantir que o indicador existe no DOM quando necessário
+        function ensureDropIndicator() {
+            if (!dropIndicator.parentNode) {
+                dropZone.appendChild(dropIndicator);
+            }
+        }
+
+        // Adicionar novo componente
+        function addComponent(type) {
+            const component = createComponent(type);
+            
+            console.log('📦 Criando componente:', component);
+            
+            if (dropMode === 'row') {
+                // Adicionar como nova linha
+                const columnItem = createColumnItem(component, 100); // 100% de largura
+                const newRow = [columnItem];
+                
+                if (targetRowIndex >= 0 && targetRowIndex <= rows.length) {
+                    rows.splice(targetRowIndex, 0, newRow);
+                    console.log('📍 Nova linha no índice:', targetRowIndex);
+                } else {
+                    rows.push(newRow);
+                    console.log('📍 Nova linha no final');
+                }
+                
+            } else if (dropMode === 'column') {
+                // Adicionar como coluna na linha existente
+                if (targetRowIndex >= 0 && targetRowIndex < rows.length) {
+                    const row = rows[targetRowIndex];
+                    
+                    // Calcular espaço proporcional para o novo item
+                    const currentTotal = row.reduce((sum, item) => sum + (item.width || 0), 0);
+                    const newItemWidth = currentTotal > 0 ? currentTotal / (row.length + 1) : 100 / (row.length + 1);
+                    
+                    const columnItem = createColumnItem(component, newItemWidth);
+                    
+                    if (targetPosition === 'before') {
+                        row.unshift(columnItem);
+                        console.log('📍 Coluna adicionada no início da linha', targetRowIndex);
+                    } else {
+                        row.push(columnItem);
+                        console.log('📍 Coluna adicionada no final da linha', targetRowIndex);
+                    }
+                    
+                    // Normalizar para que todas somem 100%
+                    normalizeWidths(row);
+                }
+            }
+
+            renderRows();
+            updatePlaceholder();
+        }
+
+        // Reordenar componente existente
+        function reorderComponent() {
+            if (draggedRowIndex === null || draggedColIndex === null) return;
+
+            console.log('🔄 Reordenando de [', draggedRowIndex, ',', draggedColIndex, ']');
+
+            // Remover da posição antiga
+            const columnItem = rows[draggedRowIndex][draggedColIndex];
+            const oldRow = rows[draggedRowIndex];
+            oldRow.splice(draggedColIndex, 1);
+            
+            // Recalcular larguras da linha antiga se ainda tiver itens
+            if (oldRow.length > 0) {
+                calculateAutoWidths(oldRow);
+            }
+            
+            // Limpar linha vazia
+            if (oldRow.length === 0) {
+                rows.splice(draggedRowIndex, 1);
+                
+                // Ajustar targetRowIndex se removemos linha antes
+                if (draggedRowIndex < targetRowIndex) {
+                    targetRowIndex--;
+                }
+            }
+
+            // Inserir na nova posição
+            if (dropMode === 'row') {
+                // Criar nova linha
+                columnItem.width = 100; // 100% de largura
+                const newRow = [columnItem];
+                if (targetRowIndex >= 0 && targetRowIndex <= rows.length) {
+                    rows.splice(targetRowIndex, 0, newRow);
+                } else {
+                    rows.push(newRow);
+                }
+                
+            } else if (dropMode === 'column') {
+                // Adicionar à linha existente
+                if (targetRowIndex >= 0 && targetRowIndex < rows.length) {
+                    const row = rows[targetRowIndex];
+                    
+                    // Calcular espaço proporcional baseado nas larguras existentes
+                    const currentTotal = row.reduce((sum, item) => sum + (item.width || 0), 0);
+                    columnItem.width = currentTotal > 0 ? currentTotal / (row.length + 1) : 100 / (row.length + 1);
+                    
+                    if (targetPosition === 'before') {
+                        row.unshift(columnItem);
+                    } else {
+                        row.push(columnItem);
+                    }
+                    
+                    // Normalizar para que todas somem 100%
+                    normalizeWidths(row);
+                }
+            }
+
+            renderRows();
+        }
+
+        // Criar definição do componente com largura
+        function createComponent(type) {
+            const id = Date.now() + Math.random();
+            
+            const componentDefinitions = {
+                // Básicos
+                textfield: { type: 'textfield', label: 'Campo de Texto', icon: '📝' },
+                email: { type: 'email', label: 'E-mail', icon: '📧' },
+                password: { type: 'password', label: 'Senha', icon: '🔒' },
+                number: { type: 'number', label: 'Número', icon: '🔢' },
+                tel: { type: 'tel', label: 'Telefone', icon: '📞' },
+                url: { type: 'url', label: 'URL', icon: '🌐' },
+                textarea: { type: 'textarea', label: 'Área de Texto', icon: '📄' },
+                hidden: { type: 'hidden', label: 'Campo Oculto', icon: '👁️' },
+                
+                // Seleção
+                select: { type: 'select', label: 'Seleção', icon: '📋' },
+                checkbox: { type: 'checkbox', label: 'Checkbox', icon: '☑️' },
+                radio: { type: 'radio', label: 'Radio', icon: '🔘' },
+                
+                // Data e Tempo
+                date: { type: 'date', label: 'Data', icon: '📆' },
+                time: { type: 'time', label: 'Hora', icon: '⏰' },
+                datetime: { type: 'datetime', label: 'Data e Hora', icon: '📅' },
+                month: { type: 'month', label: 'Mês', icon: '🗓️' },
+                week: { type: 'week', label: 'Semana', icon: '📊' },
+                
+                // Avançados
+                file: { type: 'file', label: 'Arquivo', icon: '📎' },
+                color: { type: 'color', label: 'Cor', icon: '🎨' },
+                range: { type: 'range', label: 'Slider', icon: '🎚️' },
+                
+                // Layout e Ação
+                button: { type: 'button', label: 'Botão', icon: '⚪' },
+                submit: { type: 'submit', label: 'Enviar', icon: '✅' },
+                fieldset: { type: 'fieldset', label: 'Grupo', icon: '�' },
+                label: { type: 'label', label: 'Rótulo', icon: '🏷️' },
+                space: { type: 'space', label: 'Espaçador', icon: '⬜' },
+                
+                // Containers (podem receber componentes dentro)
+                panel: { type: 'panel', label: 'Painel', icon: '🗂️', isContainer: true },
+                tabs: { type: 'tabs', label: 'Abas', icon: '📑', isContainer: true }
+            };
+
+            return {
+                id: id,
+                ...componentDefinitions[type]
+            };
+        }
+
+        // Criar item de coluna com largura
+        function createColumnItem(component, width = null) {
+            return {
+                component: component,
+                width: width, // null = auto (flex), ou número de pixels
+                children: component.isContainer ? [] : undefined // containers podem ter filhos
+            };
+        }
+        
+        // Verificar se um componente é container
+        function isContainer(comp) {
+            return comp && comp.isContainer === true;
+        }
+
+        // Calcular larguras automáticas para uma linha
+        function calculateAutoWidths(row) {
+            if (row.length === 0) return;
+            
+            // Contar itens com largura definida e null
+            const itemsWithWidth = row.filter(item => item.width !== null);
+            const itemsWithoutWidth = row.filter(item => item.width === null);
+            
+            if (itemsWithoutWidth.length === 0) {
+                // Todas têm largura definida - normalizar para 100%
+                normalizeWidths(row);
+                return;
+            }
+            
+            // Calcular espaço usado por itens com largura definida
+            const usedWidth = itemsWithWidth.reduce((sum, item) => sum + item.width, 0);
+            const remainingWidth = Math.max(0, 100 - usedWidth);
+            
+            // Distribuir espaço restante entre itens sem largura
+            const widthPerItem = remainingWidth / itemsWithoutWidth.length;
+            
+            itemsWithoutWidth.forEach(item => {
+                item.width = widthPerItem;
+            });
+            
+            // Normalizar para garantir 100%
+            normalizeWidths(row);
+        }
+        
+        // Normalizar larguras para somar exatamente 100%
+        function normalizeWidths(row) {
+            if (row.length === 0) return;
+            
+            // Calcular soma total
+            const totalWidth = row.reduce((sum, item) => sum + (item.width || 0), 0);
+            
+            if (totalWidth === 0) {
+                // Todas são null ou 0 - distribuir igualmente
+                const equalWidth = 100 / row.length;
+                row.forEach(item => item.width = equalWidth);
+                return;
+            }
+            
+            // Normalizar proporcionalmente para somar 100%
+            const factor = 100 / totalWidth;
+            row.forEach(item => {
+                item.width = (item.width || 0) * factor;
+            });
+        }
+
+        // Renderizar componentes filhos de um container (será chamado via DOM, não via string)
+        function renderContainerChildren(dropZoneEl, children, parentRowIndex, parentColIndex) {
+            // Limpar conteúdo atual
+            dropZoneEl.innerHTML = '';
+            
+            if (!children || children.length === 0) {
+                dropZoneEl.innerHTML = '<div class="container-placeholder" style="text-align: center; color: #999; font-size: 12px; padding: 20px;">Arraste componentes aqui</div>';
+                return;
+            }
+            
+            // Renderizar cada filho como elemento interativo
+            children.forEach((child, childIndex) => {
+                const childWrapper = document.createElement('div');
+                childWrapper.className = 'container-child-item';
+                childWrapper.draggable = true;
+                childWrapper.style.cssText = 'margin-bottom: 12px; padding: 12px; background: white; border: 2px solid #e0e0e0; border-radius: 4px; cursor: move; transition: all 0.2s ease;';
+                childWrapper.innerHTML = renderComponentHTML(child);
+                
+                // Configurar drag do filho
+                childWrapper.addEventListener('dragstart', function(e) {
+                    e.stopPropagation();
+                    draggedElement = childWrapper;
+                    draggedRowIndex = parentRowIndex;
+                    draggedColIndex = parentColIndex;
+                    draggedChildIndex = childIndex;
+                    draggedType = null;
+                    
+                    childWrapper.classList.add('dragging');
+                    childWrapper.style.opacity = '0.3';
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', 'reorder-child');
+                    
+                    // Criar ghost customizado
+                    const ghost = createDragGhost(child.icon, child.label);
+                    e.dataTransfer.setDragImage(new Image(), 0, 0);
+                    
+                    console.log('🔄 Arrastando filho [', parentRowIndex, ',', parentColIndex, ',', childIndex, ']');
+                });
+
+                childWrapper.addEventListener('drag', function(e) {
+                    updateDragGhost(e);
+                });
+
+                childWrapper.addEventListener('dragend', function(e) {
+                    childWrapper.classList.remove('dragging');
+                    childWrapper.style.opacity = '1';
+                    removeDragGhost();
+                    draggedChildIndex = null;
+                });
+                
+                // Hover effect
+                childWrapper.addEventListener('mouseenter', function() {
+                    if (!this.classList.contains('dragging')) {
+                        this.style.borderColor = '#1976d2';
+                        this.style.boxShadow = '0 2px 8px rgba(25,118,210,0.2)';
+                    }
+                });
+                
+                childWrapper.addEventListener('mouseleave', function() {
+                    this.style.borderColor = '#e0e0e0';
+                    this.style.boxShadow = 'none';
+                });
+                
+                dropZoneEl.appendChild(childWrapper);
+            });
+        }
+
+        // Renderizar HTML do componente baseado no tipo
+        function renderComponentHTML(comp, children = null) {
+            const baseStyle = 'width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: inherit;';
+            const labelStyle = 'display: block; font-weight: 600; margin-bottom: 6px; color: #333; font-size: 13px;';
+            
+            switch(comp.type) {
+                case 'textfield':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="text" placeholder="Digite aqui..." style="${baseStyle}" disabled>
+                    `;
+                
+                case 'email':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="email" placeholder="exemplo@email.com" style="${baseStyle}" disabled>
+                    `;
+                
+                case 'password':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="password" placeholder="••••••••" style="${baseStyle}" disabled>
+                    `;
+                
+                case 'number':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="number" placeholder="0" style="${baseStyle}" disabled>
+                    `;
+                
+                case 'tel':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="tel" placeholder="(00) 00000-0000" style="${baseStyle}" disabled>
+                    `;
+                
+                case 'url':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="url" placeholder="https://exemplo.com" style="${baseStyle}" disabled>
+                    `;
+                
+                case 'textarea':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <textarea placeholder="Digite seu texto aqui..." style="${baseStyle} min-height: 80px; resize: vertical;" disabled></textarea>
+                    `;
+                
+                case 'select':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <select style="${baseStyle}" disabled>
+                            <option>Selecione uma opção</option>
+                            <option>Opção 1</option>
+                            <option>Opção 2</option>
+                            <option>Opção 3</option>
+                        </select>
+                    `;
+                
+                case 'checkbox':
+                    return `
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" style="width: 18px; height: 18px; cursor: pointer;" disabled>
+                            <span style="font-weight: 600; color: #333;">${comp.icon} ${comp.label}</span>
+                        </label>
+                    `;
+                
+                case 'radio':
+                    return `
+                        <fieldset style="border: none; padding: 0;">
+                            <legend style="${labelStyle}">${comp.icon} ${comp.label}</legend>
+                            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                <input type="radio" name="radio_${comp.id}" style="width: 18px; height: 18px;" disabled>
+                                <span>Opção 1</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                <input type="radio" name="radio_${comp.id}" style="width: 18px; height: 18px;" disabled>
+                                <span>Opção 2</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="radio" name="radio_${comp.id}" style="width: 18px; height: 18px;" disabled>
+                                <span>Opção 3</span>
+                            </label>
+                        </fieldset>
+                    `;
+                
+                case 'date':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="date" style="${baseStyle}" disabled>
+                    `;
+                
+                case 'time':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="time" style="${baseStyle}" disabled>
+                    `;
+                
+                case 'datetime':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="datetime-local" style="${baseStyle}" disabled>
+                    `;
+                
+                case 'month':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="month" style="${baseStyle}" disabled>
+                    `;
+                
+                case 'week':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="week" style="${baseStyle}" disabled>
+                    `;
+                
+                case 'file':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="file" style="${baseStyle} cursor: pointer;" disabled>
+                    `;
+                
+                case 'color':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="color" value="#1976d2" style="width: 100%; height: 40px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;" disabled>
+                    `;
+                
+                case 'range':
+                    return `
+                        <label style="${labelStyle}">${comp.icon} ${comp.label}</label>
+                        <input type="range" min="0" max="100" value="50" style="width: 100%; cursor: pointer;" disabled>
+                        <div style="text-align: center; margin-top: 4px; font-size: 12px; color: #666;">50</div>
+                    `;
+                
+                case 'button':
+                    return `
+                        <button type="button" style="${baseStyle} background: #1976d2; color: white; font-weight: 600; cursor: pointer; border: none;" disabled>
+                            ${comp.icon} ${comp.label}
+                        </button>
+                    `;
+                
+                case 'submit':
+                    return `
+                        <button type="submit" style="${baseStyle} background: #4caf50; color: white; font-weight: 600; cursor: pointer; border: none;" disabled>
+                            ${comp.icon} ${comp.label}
+                        </button>
+                    `;
+                
+                case 'panel':
+                    return `
+                        <div class="container-panel" data-container="true" style="border: 2px solid #2196f3; border-radius: 8px; padding: 16px; background: #f8f9fa; min-height: 100px;">
+                            <div style="font-weight: 600; color: #2196f3; margin-bottom: 12px; font-size: 14px;">${comp.icon} ${comp.label}</div>
+                            <div class="container-drop-zone" style="min-height: 60px; border: 2px dashed #ccc; border-radius: 4px; padding: 12px; background: white;">
+                                <!-- Children will be rendered via DOM -->
+                            </div>
+                        </div>
+                    `;
+                
+                case 'fieldset':
+                    return `
+                        <fieldset class="container-fieldset" data-container="true" style="border: 2px solid #4caf50; border-radius: 8px; padding: 16px; min-height: 100px;">
+                            <legend style="padding: 0 8px; font-weight: 600; color: #4caf50; font-size: 14px;">${comp.icon} ${comp.label}</legend>
+                            <div class="container-drop-zone" style="min-height: 60px; border: 2px dashed #ccc; border-radius: 4px; padding: 12px; background: white;">
+                                ${renderContainerChildren(children)}
+                            </div>
+                        </fieldset>
+                    `;
+                
+                case 'tabs':
+                    return `
+                        <div class="container-tabs" data-container="true" style="border: 2px solid #ff9800; border-radius: 8px; overflow: hidden; min-height: 150px;">
+                            <div style="display: flex; background: #fff3e0; border-bottom: 2px solid #ff9800;">
+                                <div style="padding: 12px 24px; background: #ff9800; color: white; font-weight: 600; border-radius: 0;">${comp.icon} Aba 1</div>
+                                <div style="padding: 12px 24px; background: #ffe0b2; color: #666; font-weight: 600;">Aba 2</div>
+                                <div style="padding: 12px 24px; background: #ffe0b2; color: #666; font-weight: 600;">Aba 3</div>
+                            </div>
+                            <div class="container-drop-zone" style="padding: 16px; min-height: 80px; border: 2px dashed #ccc; margin: 12px; border-radius: 4px; background: white;">
+                                ${renderContainerChildren(children)}
+                            </div>
+                        </div>
+                    `;
+                
+                case 'label':
+                    return `
+                        <label style="${labelStyle} margin: 0;">${comp.icon} ${comp.label}</label>
+                        <p style="margin: 4px 0 0 0; color: #666; font-size: 12px;">Texto de exemplo para o rótulo</p>
+                    `;
+                
+                case 'hidden':
+                    return `
+                        <div style="background: #f5f5f5; border: 1px dashed #999; border-radius: 4px; padding: 12px; text-align: center;">
+                            <div style="font-weight: 600; color: #666; font-size: 13px;">${comp.icon} ${comp.label}</div>
+                            <div style="font-size: 11px; color: #999; margin-top: 4px;">Campo oculto (não visível no formulário)</div>
+                        </div>
+                    `;
+                
+                case 'space':
+                    return `
+                        <div style="background: linear-gradient(to bottom, transparent 49%, #ddd 49%, #ddd 51%, transparent 51%); 
+                                    border: 1px dashed #ccc; border-radius: 4px; padding: 20px; text-align: center; min-height: 40px;">
+                            <div style="font-weight: 600; color: #999; font-size: 12px;">${comp.icon} ${comp.label}</div>
+                            <div style="font-size: 10px; color: #bbb; margin-top: 4px;">Espaço vazio para separação visual</div>
+                        </div>
+                    `;
+                
+                default:
+                    return `
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 24px;">${comp.icon}</span>
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-weight: 600; font-size: 14px; color: #333;">${comp.label}</div>
+                                <div style="font-size: 12px; color: #666; margin-top: 4px;">Tipo: ${comp.type}</div>
+                            </div>
+                        </div>
+                    `;
+            }
+        }
+
+        // Renderizar linhas e componentes no canvas
+        function renderRows() {
+            // GARANTIR que indicadores sejam removidos antes de renderizar
+            hideAllIndicators();
+            
+            // Remover linhas e componentes existentes (mantém placeholder)
+            dropZone.querySelectorAll('.canvas-row').forEach(el => el.remove());
+
+            // Renderizar cada linha
+            rows.forEach((row, rowIndex) => {
+                const rowEl = document.createElement('div');
+                rowEl.className = 'canvas-row';
+                
+                // Renderizar cada componente na linha
+                row.forEach((columnItem, colIndex) => {
+                    const comp = columnItem.component;
+                    const width = columnItem.width || (100 / row.length);
+                    
+                    // Wrapper da coluna
+                    const colWrapper = document.createElement('div');
+                    colWrapper.className = 'column-wrapper';
+                    colWrapper.style.flexBasis = width + '%';
+                    colWrapper.style.flexGrow = '0';
+                    colWrapper.style.flexShrink = '0';
+                    
+                    // Componente
+                    const compEl = document.createElement('div');
+                    compEl.className = 'canvas-component';
+                    compEl.draggable = true;
+                    compEl.innerHTML = renderComponentHTML(comp, columnItem.children);
+
+                    // Configurar drag do componente
+                    compEl.addEventListener('dragstart', function(e) {
+                        draggedElement = compEl;
+                        draggedRowIndex = rowIndex;
+                        draggedColIndex = colIndex;
+                        draggedType = null;
+                        
+                        compEl.classList.add('dragging');
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', 'reorder');
+                        
+                        // Criar ghost customizado
+                        const ghost = createDragGhost(comp.icon, comp.label);
+                        e.dataTransfer.setDragImage(new Image(), 0, 0);
+                        
+                        console.log('🔄 Arrastando componente [', rowIndex, ',', colIndex, ']');
+                    });
+
+                    compEl.addEventListener('drag', function(e) {
+                        updateDragGhost(e);
+                    });
+
+                    compEl.addEventListener('dragend', function(e) {
+                        compEl.classList.remove('dragging');
+                        removeDragGhost();
+                        hideAllIndicators();
+                    });
+
+                    colWrapper.appendChild(compEl);
+                    
+                    // Se for container, configurar drop zone interno
+                    if (isContainer(comp)) {
+                        const dropZoneEl = compEl.querySelector('.container-drop-zone');
+                        if (dropZoneEl) {
+                            setupContainerDropZone(dropZoneEl, rowIndex, colIndex);
+                        }
+                    }
+                    
+                    // Adicionar handle de redimensionamento (exceto na última coluna)
+                    if (colIndex < row.length - 1) {
+                        const handle = document.createElement('div');
+                        handle.className = 'resize-handle';
+                        
+                        handle.addEventListener('mousedown', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            startResize(e, rowIndex, colIndex);
+                        });
+                        
+                        colWrapper.appendChild(handle);
+                    }
+                    
+                    rowEl.appendChild(colWrapper);
+                });
+                
+                dropZone.appendChild(rowEl);
+            });
+        }
+
+        // Configurar área de drop dentro de um container
+        function setupContainerDropZone(dropZoneEl, parentRowIndex, parentColIndex) {
+            dropZoneEl.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZoneEl.classList.add('drag-over');
+            });
+
+            dropZoneEl.addEventListener('dragleave', function(e) {
+                e.stopPropagation();
+                if (e.target === dropZoneEl) {
+                    dropZoneEl.classList.remove('drag-over');
+                }
+            });
+
+            dropZoneEl.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZoneEl.classList.remove('drag-over');
+                
+                const columnItem = rows[parentRowIndex][parentColIndex];
+                
+                if (!columnItem.children) {
+                    columnItem.children = [];
+                }
+                
+                // Verificar se está movendo um filho existente
+                if (draggedChildIndex !== null && draggedRowIndex !== null && draggedColIndex !== null) {
+                    const sourceColumnItem = rows[draggedRowIndex][draggedColIndex];
+                    
+                    // Remover da origem
+                    const movedChild = sourceColumnItem.children.splice(draggedChildIndex, 1)[0];
+                    
+                    // Adicionar ao destino
+                    columnItem.children.push(movedChild);
+                    
+                    console.log('✅ Filho movido de [', draggedRowIndex, ',', draggedColIndex, ',', draggedChildIndex, '] para [', parentRowIndex, ',', parentColIndex, ']');
+                    
+                } else if (draggedType) {
+                    // Adicionar novo componente da paleta
+                    const component = createComponent(draggedType);
+                    columnItem.children.push(component);
+                    
+                    console.log('✅ Novo componente adicionado ao container [', parentRowIndex, ',', parentColIndex, ']');
+                }
+                
+                renderRows();
+                draggedChildIndex = null;
+            });
+        }
+
+        // Iniciar redimensionamento
+        function startResize(e, rowIndex, colIndex) {
+            isResizing = true;
+            resizeRowIndex = rowIndex;
+            resizeColIndex = colIndex;
+            resizeStartX = e.clientX;
+            
+            const row = rows[rowIndex];
+            resizeStartWidths = row.map(item => item.width || (100 / row.length));
+            
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            
+            // Adicionar classe active ao handle
+            const rowEl = dropZone.querySelectorAll('.canvas-row')[rowIndex];
+            const handle = rowEl.querySelectorAll('.resize-handle')[colIndex];
+            if (handle) handle.classList.add('active');
+            
+            console.log('🔧 Iniciando redimensionamento [', rowIndex, ',', colIndex, ']');
+        }
+
+        // Durante o redimensionamento
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            
+            const row = rows[resizeRowIndex];
+            const rowEl = dropZone.querySelectorAll('.canvas-row')[resizeRowIndex];
+            const rowWidth = rowEl.offsetWidth;
+            
+            const deltaX = e.clientX - resizeStartX;
+            const deltaPercent = (deltaX / rowWidth) * 100;
+            
+            // Atualizar larguras das duas colunas adjacentes
+            const leftWidth = Math.max(10, Math.min(90, resizeStartWidths[resizeColIndex] + deltaPercent));
+            const rightWidth = Math.max(10, Math.min(90, resizeStartWidths[resizeColIndex + 1] - deltaPercent));
+            
+            row[resizeColIndex].width = leftWidth;
+            row[resizeColIndex + 1].width = rightWidth;
+            
+            // Se houver mais de 2 colunas, normalizar todas
+            if (row.length > 2) {
+                normalizeWidths(row);
+            }
+            
+            // Atualizar visualmente todas as colunas
+            const wrappers = rowEl.querySelectorAll('.column-wrapper');
+            row.forEach((item, idx) => {
+                if (wrappers[idx]) {
+                    wrappers[idx].style.flexBasis = item.width + '%';
+                }
+            });
+        });
+
+        // Finalizar redimensionamento
+        document.addEventListener('mouseup', function(e) {
+            if (!isResizing) return;
+            
+            isResizing = false;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            
+            // Remover classe active dos handles
+            document.querySelectorAll('.resize-handle.active').forEach(h => {
+                h.classList.remove('active');
+            });
+            
+            console.log('✅ Redimensionamento finalizado');
+        });
+
+        // Atualizar visibilidade do placeholder
+        function updatePlaceholder() {
+            if (rows.length === 0) {
+                placeholder.classList.remove('hidden');
+            } else {
+                placeholder.classList.add('hidden');
+            }
+        }
+
+        // Mostrar JSON
+        function showJSON() {
+            const json = JSON.stringify(rows, null, 2);
+            alert(json);
+            console.log('📋 JSON:', json);
+        }
+
+        // Inicializar
+        updatePlaceholder();
+    </script>
+</body>
+</html>
